@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'guardian' => [
+        'key' => env('GUARDIAN_API_KEY'),
+    ],
+    'newsapi' => [
+        'key' => env('NEWSAPI_API_KEY'),
+    ],
+
 ];
