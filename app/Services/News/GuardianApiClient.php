@@ -5,28 +5,59 @@ namespace App\Services\News;
 use Illuminate\Support\Facades\Http;
 use App\Services\News\Contracts\NewsApiClientInterface;
 use App\Services\News\DataTransferObjects\ArticleDTO;
+use App\Exceptions\ApiRateLimitException;
+use App\Exceptions\ApiException;
 use Carbon\Carbon;
+use GuzzleHttp\Exception\ConnectException;
 
 class GuardianApiClient implements NewsApiClientInterface
 {
     public function fetchArticles(\DateTime $fromDate): array
     {
-        $response = Http::get('https://content.guardianapis.com/search', [
-            'api-key' => config('services.guardian.key'),
-            'from-date' => $fromDate->format('Y-m-d\TH:i:s'),
-            'show-fields' => 'body,byline',
-            'page-size' => 50,
-            'section' => 'news,technology,science,world',
-            'order-by' => 'newest',
-            'section' => 'news|technology|science|world|politics'
-        ]);
+        try {
+            $response = Http::withHeaders([
+                'Accept' => 'application/json',
+            ])->get('https://content.guardianapis.com/search', [
+                'api-key' => config('services.guardian.key'),
+                'from-date' => $fromDate->format('Y-m-d\TH:i:s'),
+                'show-fields' => 'body,byline',
+                'page-size' => 50,
+                'section' => 'news,technology,science,world',
+                'order-by' => 'newest',
+                'section' => 'news|technology|science|world|politics'
+            ]);
 
-        $results = $response->json()['response']['results'] ?? [];
+            if ($response->status() === 500) {
+                throw new ApiException(
+                    'guardian', 
+                    'Internal server error: ' . $response->body(),
+                    $response->status()
+                );
+            }
 
-        // Filter out liveblogs
-        return $this->transformResponse(array_filter($results, function ($article) {
-            return $article['type'] === 'article';
-        }));
+            if ($response->status() === 429) {
+                throw new ApiRateLimitException(
+                    $response->header('Retry-After', 60)
+                );
+            }
+
+            if ($response->failed()) {
+                throw new ApiException(
+                    'guardian',
+                    "API Error: {$response->body()}",
+                    $response->status()
+                );
+            }
+
+            $results = $response->json()['response']['results'] ?? [];
+
+            // Filter out liveblogs
+            return $this->transformResponse(array_filter($results, function ($article) {
+                return $article['type'] === 'article';
+            }));
+        } catch (ConnectException $e) {
+            throw new ApiException('guardian', 'Connection failed: ' . $e->getMessage(), 0, $e);
+        }
     }
 
     private function transformResponse(array $apiData): array

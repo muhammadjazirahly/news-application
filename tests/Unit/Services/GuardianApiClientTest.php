@@ -5,37 +5,8 @@ namespace Tests\Unit\Services;
 use Tests\TestCase;
 use Carbon\Carbon;
 use App\Services\News\GuardianApiClient;
+use App\Exceptions\ApiRateLimitException;
 use Illuminate\Support\Facades\Http;
-
-// class GuardianApiClientTest extends TestCase
-// {
-//     public function test_fetches_and_transforms_articles()
-//     {
-//         Http::fake([
-//             'content.guardianapis.com/search*' => Http::response([
-//                 'response' => [
-//                     'results' => [
-//                         [
-//                             'id' => 'test-123',
-//                             'webTitle' => 'Test Article',
-//                             'webUrl' => 'https://example.com',
-//                             'webPublicationDate' => now()->toIso8601String(),
-//                             'fields' => ['body' => 'Test content'],
-//                             'sectionName' => 'Technology'
-//                         ]
-//                     ]
-//                 ]
-//             ])
-//         ]);
-
-//         $client = new GuardianApiClient();
-//         $articles = $client->fetchArticles(now()->subHour());
-
-//         $this->assertCount(1, $articles);
-//         $this->assertEquals('Test Article', $articles[0]->title);
-//         $this->assertEquals('technology', $articles[0]->categories[0]['name']);
-//     }
-// }
 
 class GuardianApiClientTest extends TestCase
 {
@@ -125,5 +96,23 @@ class GuardianApiClientTest extends TestCase
 
         $this->assertCount(1, $articles);
         $this->assertEquals(['Unknown'], $articles[0]->authors);
+    }
+
+    public function test_throws_rate_limit_exception()
+    {
+        Http::fake([
+            'content.guardianapis.com/*' => Http::response(
+                'Too many requests',
+                429,
+                ['Retry-After' => '60']
+            ),
+        ]);
+
+        $this->expectException(ApiRateLimitException::class);
+        $this->expectExceptionMessage('API rate limit exceeded');
+        $this->expectExceptionCode(429);
+
+        $client = new GuardianApiClient();
+        $client->fetchArticles(now()->subHour());
     }
 }
