@@ -14,6 +14,17 @@ A Dockerized Laravel application that syncs news articles from **The Guardian** 
 
 ---
 
+## API Keys Setup
+
+1. Sign up for [News API](https://newsapi.org/register) and [The Guardian API](https://open-platform.theguardian.com/access/).
+2. Add your API keys to the `.env` file:
+```
+GUARDIAN_API_KEY="api_key"
+NEWSAPI_API_KEY="api_key"
+```
+
+---
+
 ## QUICK START
 
 1. **Clone the repository**:
