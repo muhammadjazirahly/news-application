@@ -14,6 +14,16 @@ A Dockerized Laravel application that syncs news articles from **The Guardian** 
 
 ---
 
+## VERSIONS
+
+- Laravel Framework 11.39.1
+- PHP 8.3.16
+- PHPUnit 10.5.9
+- Docker version 27.4.0
+- Docker Compose version v2.31.0-desktop.2
+
+---
+
 ## API Keys Setup
 
 1. Sign up for [News API](https://newsapi.org/register) and [The Guardian API](https://open-platform.theguardian.com/access/).
