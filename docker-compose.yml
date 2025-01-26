@@ -1,0 +1,92 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DB_HOST=mysql
+      - DB_DATABASE=news_app
+      - DB_USERNAME=root
+      - DB_PASSWORD=secret
+      - QUEUE_CONNECTION=database
+    networks:
+      - news-network
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: news_app
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: mysqladmin ping -uroot -psecret
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - news-network
+
+  init-db:
+    build: .
+    command: ["./wait-for.sh", "mysql", "php", "artisan", "migrate", "--force"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DB_HOST=mysql
+      - DB_DATABASE=news_app
+      - DB_USERNAME=root
+      - DB_PASSWORD=secret
+    networks:
+      - news-network
+
+  scheduler:
+    build: .
+    command: ["./wait-for.sh", "mysql", "bash", "-c", "while true; do php artisan schedule:run; sleep 60; done"]
+    depends_on:
+      - init-db
+    environment:
+      - DB_HOST=mysql
+      - DB_DATABASE=news_app
+      - DB_USERNAME=root
+      - DB_PASSWORD=secret
+      - QUEUE_CONNECTION=database
+    networks:
+      - news-network
+
+  queue:
+    build: .
+    command: >
+      bash -c "./wait-for.sh mysql -- 
+      php artisan queue:work --queue=news-sync 
+      --tries=5 --backoff=30 
+      --sleep=10 --timeout=120 
+      --max-jobs=1000"
+    restart: unless-stopped
+    depends_on:
+      - init-db
+    environment:
+      - DB_HOST=mysql
+      - DB_DATABASE=news_app
+      - DB_USERNAME=root
+      - DB_PASSWORD=secret
+      - QUEUE_CONNECTION=database
+    networks:
+      - news-network
+
+volumes:
+  mysql_data:
+
+networks:
+  news-network:
+    driver: bridge
